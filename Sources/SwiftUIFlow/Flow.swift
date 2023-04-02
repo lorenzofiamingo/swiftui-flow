@@ -62,13 +62,24 @@ public struct Flow<Input, Output>: DynamicProperty {
 }
 
 @available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
+extension Flow where Input == Void {
+    
+    public var wrappedValue: () async throws -> Output {
+        { try await coordinator.run(()) }
+    }
+}
+
+@available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
 @propertyWrapper
 public struct FlowInput<Input, Output>: DynamicProperty {
     
     @EnvironmentObject private var coordinator: FlowCoordinator<Input, Output>
     
     public var wrappedValue: Input {
-        coordinator.input!
+        guard let input = coordinator.input else {
+            fatalError("No input of the flow was found. The flow should be running to read the input.")
+        }
+        return input
     }
     
     public var projectedValue: Flow<Input, Output> {

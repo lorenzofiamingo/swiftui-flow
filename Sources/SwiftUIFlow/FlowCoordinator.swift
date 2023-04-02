@@ -9,7 +9,13 @@ final class FlowCoordinator<Input, Output>: ObservableObject {
     
     var resume: ((Result<Output, Error>?) -> Void)?
     
-    @Published var isPresented = false
+    @Published var isPresented = false {
+        willSet {
+            if !newValue {
+                resumeSafe(nil)
+            }
+        }
+    }
     
     func run(_ input: Input) async throws -> Output {
         guard resume == nil else {
@@ -25,14 +31,13 @@ final class FlowCoordinator<Input, Output>: ObservableObject {
                 resume = continuation.resume(returning:)
             }
         } onCancel: {
-            resume?(nil)
+            resumeSafe(nil)
         }
         DispatchQueue.main.async {
-            if !self.dismissIsDisabled {
+            if !self.dismissIsDisabled && self.isPresented {
                 self.isPresented = false
             }
         }
-        resume = nil
         try Task.checkCancellation()
         if let result {
             return try result.get()
@@ -42,18 +47,18 @@ final class FlowCoordinator<Input, Output>: ObservableObject {
     }
     
     func cancel() {
-        resume?(nil)
+        resumeSafe(nil)
     }
     
     func dismiss() {
-        resume?(nil)
+        resumeSafe(nil)
         DispatchQueue.main.async {
             self.isPresented = false
         }
     }
     
     func resume(with result: Result<Output, Error>) {
-        resume?(result)
+        resumeSafe(result)
     }
     
     func onAppear() {
@@ -69,8 +74,13 @@ final class FlowCoordinator<Input, Output>: ObservableObject {
     func onDisappear() {
         // Need to postpone input deinitialization since navigationDestination redraw view without input while dismissing.
         if !isPresented {
-            resume?(nil)
+            resumeSafe(nil)
             input = nil
         }
+    }
+    
+    private func resumeSafe(_ result: Result<Output, Error>?) {
+        resume?(result)
+        resume = nil
     }
 }
